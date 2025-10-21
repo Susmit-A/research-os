@@ -197,3 +197,174 @@ Would this comparison make sense for your goals?
 2. Few-shot adaptation methods for bias models
 3. Meta-learning for domain adaptation
 4. Implicit bias modeling in neural networks
+
+---
+
+## Iteration 5: Implementation Details
+
+### User's Answers to Iteration 4 Questions
+
+**Q1: Training regularizer formulation**
+**A1:** Append a new uniform-colored image with a uniform density centerbias to the current batch, and then maximize the entropy for this output. This is the regularizer.
+
+**Q2: Implicit bias model architecture and training**
+**A2:** The implicit bias model is a Deconvolution network that starts with a random tensor. It optimizes this tensor and the deconv network to learn the implicit bias for the dataset being trained.
+
+**Q3: Few-shot adaptation mechanism**
+**A3:** 100 samples. Freeze the deconv network and only train the vector input of the deconv network.
+
+**Q4: Component relationships**
+**A4:** Described in Q1 (the regularizer works by appending uniform images to batches and maximizing entropy).
+
+**Q5: Training approach**
+**A5:** From scratch
+
+**Q6: Leave-one-out evaluation protocol**
+**A6:** Train on a mix of 4 datasets, evaluate on the validation set of the left out set. Adapt on 100 samples of the training split of the left out set.
+
+**Q7: UNISAL integration**
+**A7:** Leave that for later, not part of the main code.
+
+**Q8: Success criteria**
+**A8:** Metric is Information Gain. Success criteria: similar or better IG of regularized and adapted model compared to base model on left out dataset.
+
+### Key Implementation Insights
+
+**Regularization Mechanism:**
+- During training, append uniform-colored images with uniform centerbias to each batch
+- Maximize entropy of model predictions on these uniform images
+- This encourages the model to produce high-entropy (uniform-like) outputs for uninformative inputs
+- Forces the model to rely on image content rather than learning positional biases
+
+**Implicit Bias Model:**
+- Architecture: Deconvolutional network
+- Input: Random tensor (learned during training)
+- Output: Spatial bias map matching image dimensions
+- Training: Joint optimization of input tensor and deconv weights to model dataset's implicit bias
+- Purpose: Explicitly capture the residual bias that the saliency model learns
+
+**Few-Shot Adaptation:**
+- Use exactly 100 samples from target dataset
+- Freeze all deconv network parameters
+- Only optimize the input tensor
+- This allows rapid adaptation to new dataset's bias distribution with minimal overfitting
+
+**Evaluation Protocol:**
+- 5-fold leave-one-out cross-validation across datasets
+- Each fold: train on 4 datasets, evaluate on 5th dataset's validation set
+- Adaptation: use 100 training samples from left-out dataset to adapt implicit bias model
+- Metric: Information Gain on validation set
+- Success: regularized + adapted model achieves similar or better IG than base model
+
+### Related Work Search 3
+
+**Entropy Maximization Regularization:**
+- **Deep OOD Uncertainty via Weight Entropy Maximization** (de Mathelin et al., 2023): Uses max entropy principle for weight distributions to improve OOD detection
+- **CPR: Classifier-Projection Regularization** (Cha et al., 2020): Maximizes entropy of classifier output probability for continual learning
+- **Maximum Multiscale Entropy and Neural Network Regularization** (Asadi & Abbe, 2020): Demonstrates reduced excess risk with multiscale entropy regularizers
+- **Feature Magnitude Regularization** (Chapman et al., 2024): Uses entropy maximization to ensure even distribution of feature magnitudes and remove pretrained bias
+
+**Few-Shot Adaptation with Frozen Networks:**
+- **MIV-head** (Xu et al., 2025): Backbone-agnostic classification head for cross-domain few-shot learning without fine-tuning backbones
+- **MMRL++** (Guo & Gu, 2025): Inserts learnable tokens in higher encoder layers while freezing lower layers to preserve pre-trained knowledge
+- **TAMT** (Wang et al., 2025): Local temporal-aware adapters to recalibrate intermediate features of frozen models
+- **Low-Precision Adapters** (Jie et al., 2023): 1-bit quantized adapters for few-shot visual categorization
+- **Neural Fine-Tuning Search** (Eustratiadis et al., 2023): NAS to determine optimal adapter placement and layer freezing
+
+**Cross-Dataset Saliency:**
+- **CaRDiff** (Tang et al., 2024): Integrates MLLM, grounding, and diffusion for zero-shot cross-dataset evaluation
+- **SalNAS** (Termritthikun et al., 2024): NAS with self-knowledge distillation for cross-dataset performance
+- **SalTR** (Djilali et al., 2023): Transformer-based saliency achieving strong benchmark performance
+
+**Deconvolutional Networks:**
+- **Sandwich GAN** (Peng et al., 2024): Wraps GANs around learnable deconvolution for image restoration
+- **Transformers with Deconv** (Bai et al., 2021): Uses deconv networks with compressed features for reconstruction
+
+**Information Gain in Saliency:**
+- **DeepGaze II** (Kümmerer et al., 2016): Achieves 87% of explainable information gain using VGG-19 features
+- IG is standard metric in saliency community for measuring how much model predictions improve over baseline
+
+---
+
+## Research Vision Summary
+
+### Core Problem
+Saliency prediction models (DeepGaze 2E, DeepGaze 3) learn implicit residual centerbiases during training, even when trained with explicit centerbias priors. These implicit biases overfit to training dataset distributions and harm out-of-domain (OOD) generalization performance.
+
+### Novel Approach
+This research develops a three-component system to address implicit bias:
+
+1. **Entropy Regularization During Training**
+   - Append uniform-colored images with uniform centerbias to training batches
+   - Maximize entropy of model predictions on these uninformative inputs
+   - Forces model to produce uniform (high-entropy) outputs when image content is uninformative
+   - Reduces implicit positional bias learning
+
+2. **Deconvolutional Implicit Bias Model**
+   - Learns to explicitly capture residual implicit bias in dataset
+   - Architecture: Deconvolution network with learned input tensor
+   - Trained jointly with saliency model to model positional priors
+   - Separates content-driven saliency from dataset-specific biases
+
+3. **Few-Shot Bias Adaptation**
+   - Adapts implicit bias model to OOD datasets using 100 samples
+   - Freezes deconv network, only optimizes input tensor
+   - Enables rapid calibration to new dataset distributions
+   - Minimal risk of overfitting with frozen architecture
+
+### Key Hypothesis
+Models trained with entropy regularization will learn less implicit bias (higher entropy in extracted bias maps). When adapted to OOD datasets using few-shot learning, these regularized models will achieve similar or better Information Gain compared to baseline models, demonstrating improved cross-dataset generalization.
+
+### Evaluation Strategy
+**Leave-one-out cross-validation** across 5 datasets:
+- MIT1003
+- CAT2000
+- COCO Freeview
+- Daemons
+- Figrim
+
+Each fold:
+1. Train saliency model with regularizer on 4 datasets
+2. Train implicit bias model on same 4 datasets
+3. Evaluate on validation set of left-out dataset
+4. Adapt implicit bias model using 100 training samples from left-out dataset
+5. Measure Information Gain improvement
+
+### Success Criteria
+Regularized + adapted model achieves **equal or better Information Gain** on left-out dataset validation set compared to baseline model without regularization.
+
+### Novel Contributions
+1. **First entropy-based regularization for implicit bias reduction** in saliency prediction
+2. **Deconvolutional bias modeling approach** that explicitly captures implicit biases
+3. **Few-shot adaptation framework** for rapid bias calibration across datasets
+4. **Comprehensive cross-dataset evaluation** demonstrating improved OOD generalization
+5. **Novel extraction and analysis method** using uniform images to quantify implicit bias
+
+### Relation to Existing Work
+- **Unlike** implicit bias work in classification (Jacobs 2024, Chou 2023): This addresses dense spatial prediction with explicit bias modeling
+- **Extends** cross-dataset saliency work (SalNAS, CaRDiff): Adds explicit bias reduction mechanism rather than just architectural improvements
+- **Builds on** DeepGaze II/IIE: Uses same models but adds regularization to reduce overfitting to dataset biases
+- **Novel compared to** few-shot adaptation literature: Applies frozen network adaptation specifically to bias models rather than task models
+
+### Expected Impact
+- Enables saliency models to generalize better across diverse datasets
+- Provides principled method for reducing dataset-specific overfitting
+- Opens new research direction in explicit bias modeling and regularization
+- Practical improvement for cross-dataset deployment of saliency models
+
+### Technical Novelty
+The combination of entropy regularization during training, explicit deconvolutional bias modeling, and few-shot adaptation represents a novel approach not previously explored in saliency prediction literature. The key insight is that explicitly modeling and regularizing implicit biases leads to better generalization than ignoring them or only using architectural improvements.
+
+---
+
+## Research Refinement Complete
+
+All aspects of the research vision have been clarified:
+- Clear problem definition (implicit bias in saliency models)
+- Concrete methodology (entropy regularization + deconv bias model + few-shot adaptation)
+- Specific evaluation protocol (5-fold leave-one-out with 100-sample adaptation)
+- Well-defined success criteria (equal or better IG on OOD datasets)
+- Positioned against related work (novel approach to bias regularization)
+- Implementation details specified (from scratch training, specific datasets, metric)
+
+**Ready to proceed to mission creation and experiment roadmap development.**
