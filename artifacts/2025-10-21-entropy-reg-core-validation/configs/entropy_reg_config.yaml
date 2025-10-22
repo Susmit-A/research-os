@@ -1,0 +1,84 @@
+# Entropy-Regularized DeepGaze 3 Training Configuration
+# Uses NLL + entropy regularization loss
+
+experiment:
+  name: "deepgaze3_entropy_reg"
+  description: "DeepGaze 3 training with entropy regularization to increase bias uniformity"
+  seed: 42
+
+model:
+  name: "DeepGazeIII"
+  pretrained: false  # Start from scratch for fair comparison
+  saliency_only_mode: true  # No fixation history modeling
+
+data:
+  dataset: "MIT1003"
+  train_split: 902
+  val_split: 101
+  image_size: [1024, 768]  # width x height
+  normalize:
+    mean: [0.485, 0.456, 0.406]  # ImageNet normalization
+    std: [0.229, 0.224, 0.225]
+  data_path: "/path/to/MIT1003"  # UPDATE THIS PATH
+  num_workers: 8
+  pin_memory: true
+
+training:
+  epochs: 25
+  batch_size: 32  # Per GPU (total batch size = 32 * 4 = 128)
+
+  optimizer:
+    type: "Adam"
+    lr: 0.001585
+    betas: [0.9, 0.999]
+    eps: 1.0e-8
+    weight_decay: 0.0
+
+  lr_scheduler:
+    type: "MultiStepLR"
+    milestones: [12, 18]  # 50% and 75% of 25 epochs
+    gamma: 0.1  # Reduce LR by 10x at each milestone
+
+  loss:
+    type: "NLL_plus_Entropy"  # Combined loss
+    nll_weight: 1.0
+    entropy_weight: 1.0  # Lambda = 1.0 (fixed for triage)
+
+  # Entropy regularization settings
+  entropy_regularization:
+    enabled: true
+    compute_every: 50  # Compute entropy every N batches
+    num_uniform_samples: 16  # Number of uniform images for bias extraction
+    uniform_intensities: [0.0, 0.5, 1.0]  # Intensity values for uniform images
+    log_entropy: true  # Log entropy values during training
+
+  # Distributed training settings
+  distributed:
+    backend: "nccl"
+    world_size: 4
+    find_unused_parameters: false
+
+  # Checkpointing
+  checkpoint:
+    save_every: 5  # Save every 5 epochs
+    save_best: true
+    save_last: true
+
+  # Logging
+  logging:
+    log_every: 10  # Log every 10 batches
+    save_log: true
+    log_entropy: true  # Log entropy regularization values
+
+validation:
+  eval_every: 1  # Evaluate every epoch
+  metrics:
+    - "loss"
+    - "information_gain"
+    - "bias_entropy"  # Also compute bias entropy during validation
+
+# Reproducibility
+reproducibility:
+  deterministic: true
+  benchmark: false
+  cuda_deterministic: true
