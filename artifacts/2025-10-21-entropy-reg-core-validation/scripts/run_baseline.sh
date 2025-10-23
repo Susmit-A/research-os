@@ -4,11 +4,11 @@
 #SBATCH --error=../outputs/logs/baseline_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
-#SBATCH --gres=gpu:A100:4
+#SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=256G
 #SBATCH --time=12:00:00
-#SBATCH --partition=gpu
+#SBATCH --partition=a100-galvani
 
 # Exit on any error
 set -e
@@ -24,8 +24,12 @@ echo "GPUs: $SLURM_GPUS"
 echo "Start Time: $(date)"
 echo ""
 
+export DEEPGAZE_CONDA_ENV="/mnt/lustre/work/bethge/bkr710/.conda/deepgaze"
+
 # Navigate to artifact directory
-ARTIFACT_DIR="/mnt/lustre/work/bethge/bkr710/projects/research-os-deepgaze/research-os/artifacts/2025-10-21-entropy-reg-core-validation"
+# Get artifact directory relative to script location
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ARTIFACT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$ARTIFACT_DIR" || { echo "ERROR: Failed to cd to $ARTIFACT_DIR"; exit 1; }
 echo "Working directory: $(pwd)"
 echo ""
@@ -44,7 +48,25 @@ echo ""
 echo "=========================================="
 echo "Activating conda environment"
 echo "=========================================="
-CONDA_ENV="/mnt/lustre/work/bethge/bkr710/.conda/deepgaze"
+
+# Check for conda environment in multiple locations
+# Priority: 1. Environment variable, 2. User's .conda directory, 3. Colleague's directory
+if [ -n "$DEEPGAZE_CONDA_ENV" ]; then
+    CONDA_ENV="$DEEPGAZE_CONDA_ENV"
+elif [ -d "$HOME/.conda/deepgaze" ]; then
+    CONDA_ENV="$HOME/.conda/deepgaze"
+elif [ -d "/mnt/lustre/home/bethge/bkr623/.conda/deepgaze" ]; then
+    CONDA_ENV="/mnt/lustre/home/bethge/bkr623/.conda/deepgaze"
+elif [ -d "/mnt/lustre/work/bethge/bkr710/.conda/deepgaze" ]; then
+    CONDA_ENV="/mnt/lustre/work/bethge/bkr710/.conda/deepgaze"
+    echo "WARNING: Using colleague's conda environment"
+else
+    echo "ERROR: Conda environment 'deepgaze' not found"
+    echo "       Set DEEPGAZE_CONDA_ENV environment variable or create environment at:"
+    echo "       - $HOME/.conda/deepgaze"
+    echo "       - /mnt/lustre/home/bethge/bkr623/.conda/deepgaze"
+    exit 1
+fi
 
 if [ ! -d "$CONDA_ENV" ]; then
     echo "ERROR: Conda environment not found at $CONDA_ENV"
