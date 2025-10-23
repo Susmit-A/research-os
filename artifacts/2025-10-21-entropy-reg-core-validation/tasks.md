@@ -57,6 +57,7 @@
   - [x] 6.4 Verify both models complete 25 epochs successfully - Verification steps documented
   - [x] 6.5 Save final model checkpoints with optimizer states - Automated in training scripts
   - [x] 6.6 **CRITICAL FIX**: Added DistributedSampler for proper DDP training (See CRITICAL_FIX_DISTRIBUTED_SAMPLER.md)
+  - [x] 6.7 **SLURM IMPROVEMENTS**: Enhanced scripts with validation, error handling, auto-setup (See SLURM_SCRIPT_IMPROVEMENTS.md)
 
 - [x] 7. Implement evaluation metrics and analysis
   - [x] 7.1 Write tests for Information Gain computation (16 tests passing)
