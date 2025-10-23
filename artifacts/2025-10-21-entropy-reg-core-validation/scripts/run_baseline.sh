@@ -3,7 +3,7 @@
 #SBATCH --output=../outputs/logs/baseline_%j.out
 #SBATCH --error=../outputs/logs/baseline_%j.err
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
+#SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:A100:4
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=256G

@@ -10,6 +10,7 @@ Implements PyTorch Dataset class for MIT1003 benchmark dataset with:
 
 import torch
 from torch.utils.data import Dataset
+from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
 from PIL import Image
 import numpy as np
@@ -193,17 +194,21 @@ def create_mit1003_dataloaders(
     num_workers: int = 8,
     image_size: Tuple[int, int] = (1024, 768),
     normalize: bool = True,
-    seed: int = 42
+    seed: int = 42,
+    world_size: int = 1,
+    rank: int = 0
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """Create train and validation dataloaders for MIT1003.
 
     Args:
         data_path: Path to MIT1003 dataset
-        batch_size: Batch size for dataloaders
+        batch_size: Batch size for dataloaders (per GPU)
         num_workers: Number of worker processes for data loading
         image_size: Target image size (width, height)
         normalize: Whether to apply ImageNet normalization
         seed: Random seed for reproducibility
+        world_size: Number of distributed processes (1 for single GPU)
+        rank: Rank of current process in distributed training
 
     Returns:
         Tuple of (train_dataloader, val_dataloader)
@@ -224,10 +229,34 @@ def create_mit1003_dataloaders(
         seed=seed
     )
 
+    # Create DistributedSampler for DDP training
+    train_sampler = None
+    val_sampler = None
+
+    if world_size > 1:
+        train_sampler = DistributedSampler(
+            train_dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=True,
+            seed=seed,
+            drop_last=False
+        )
+
+        val_sampler = DistributedSampler(
+            val_dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=False,
+            seed=seed,
+            drop_last=False
+        )
+
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=(train_sampler is None),  # Only shuffle if not using DistributedSampler
+        sampler=train_sampler,
         num_workers=num_workers,
         pin_memory=True,
         drop_last=False
@@ -236,7 +265,8 @@ def create_mit1003_dataloaders(
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=False,  # Never shuffle validation
+        sampler=val_sampler,
         num_workers=num_workers,
         pin_memory=True,
         drop_last=False

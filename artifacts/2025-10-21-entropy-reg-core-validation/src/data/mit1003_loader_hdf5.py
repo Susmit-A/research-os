@@ -12,6 +12,7 @@ the entire dataset.
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.distributed import DistributedSampler
 from torchvision import transforms
 from PIL import Image
 import numpy as np
@@ -247,17 +248,21 @@ def create_mit1003_dataloaders_hdf5(
     image_size: Tuple[int, int] = (1024, 768),
     num_workers: int = 4,
     pin_memory: bool = True,
-    seed: int = 42
+    seed: int = 42,
+    world_size: int = 1,
+    rank: int = 0
 ) -> Tuple[DataLoader, DataLoader]:
     """Create train and validation data loaders for MIT1003 (HDF5 version).
 
     Args:
         data_path: Path to MIT1003 dataset root
-        batch_size: Batch size for data loaders
+        batch_size: Batch size for data loaders (per GPU)
         image_size: Target image size as (width, height)
         num_workers: Number of data loading workers
         pin_memory: Whether to pin memory for faster GPU transfer
         seed: Random seed for reproducibility
+        world_size: Number of distributed processes (1 for single GPU)
+        rank: Rank of current process in distributed training
 
     Returns:
         train_loader: DataLoader for training set (902 images)
@@ -280,11 +285,35 @@ def create_mit1003_dataloaders_hdf5(
         seed=seed
     )
 
+    # Create DistributedSampler for DDP training
+    train_sampler = None
+    val_sampler = None
+
+    if world_size > 1:
+        train_sampler = DistributedSampler(
+            train_dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=True,
+            seed=seed,
+            drop_last=False
+        )
+
+        val_sampler = DistributedSampler(
+            val_dataset,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=False,
+            seed=seed,
+            drop_last=False
+        )
+
     # Create data loaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=(train_sampler is None),  # Only shuffle if not using DistributedSampler
+        sampler=train_sampler,
         num_workers=num_workers,
         pin_memory=pin_memory
     )
@@ -292,7 +321,8 @@ def create_mit1003_dataloaders_hdf5(
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=False,  # Never shuffle validation
+        sampler=val_sampler,
         num_workers=num_workers,
         pin_memory=pin_memory
     )

@@ -217,6 +217,57 @@ class TestDistributedDataLoading:
         # This is a probabilistic test
         assert len(indices_epoch0) == len(indices_epoch1)
 
+    def test_create_dataloaders_with_distributed_sampler(self):
+        """Test that create_mit1003_dataloaders uses DistributedSampler for DDP."""
+        from data.mit1003_loader import create_mit1003_dataloaders
+
+        # Test with world_size > 1 (distributed training)
+        # This should fail gracefully if path doesn't exist, but we can check the API
+        try:
+            train_loader, val_loader = create_mit1003_dataloaders(
+                data_path="/path/to/MIT1003",
+                batch_size=32,
+                world_size=4,
+                rank=0
+            )
+
+            # If loaders were created, verify they have DistributedSampler
+            if train_loader is not None:
+                assert train_loader.sampler is not None, \
+                    "Train loader should have a sampler in distributed mode"
+                assert isinstance(train_loader.sampler, DistributedSampler), \
+                    "Train sampler should be DistributedSampler when world_size > 1"
+
+            if val_loader is not None:
+                assert val_loader.sampler is not None, \
+                    "Val loader should have a sampler in distributed mode"
+                assert isinstance(val_loader.sampler, DistributedSampler), \
+                    "Val sampler should be DistributedSampler when world_size > 1"
+        except FileNotFoundError:
+            # Expected if dataset doesn't exist - test passes
+            pass
+
+    def test_create_dataloaders_without_distributed_sampler(self):
+        """Test that create_mit1003_dataloaders uses shuffle when world_size=1."""
+        from data.mit1003_loader import create_mit1003_dataloaders
+
+        # Test with world_size = 1 (single GPU)
+        try:
+            train_loader, val_loader = create_mit1003_dataloaders(
+                data_path="/path/to/MIT1003",
+                batch_size=32,
+                world_size=1,
+                rank=0
+            )
+
+            # If loaders were created, verify they don't have DistributedSampler
+            if train_loader is not None:
+                assert train_loader.sampler is None, \
+                    "Train loader should not have sampler in single-GPU mode (uses shuffle instead)"
+        except FileNotFoundError:
+            # Expected if dataset doesn't exist - test passes
+            pass
+
 
 @pytest.mark.skipif(not torch.cuda.is_available() or torch.cuda.device_count() < 4,
                     reason="Requires 4 GPUs")

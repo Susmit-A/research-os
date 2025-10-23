@@ -253,7 +253,9 @@ class DeepGazeIII(torch.nn.Module):
                 scanpath_features = F.interpolate(scanpath_features, readout_shape)
                 y = self.scanpath_network(scanpath_features)
             else:
-                y = None
+                # When no scanpath history, create zero tensor with expected shape
+                # scanpath_network output should have 16 channels
+                y = torch.zeros(x.shape[0], 16, x.shape[2], x.shape[3], device=x.device)
         else:
             y = None
 
@@ -322,7 +324,8 @@ class DeepGazeIIIMixture(torch.nn.Module):
                     scanpath_features = F.interpolate(scanpath_features, readout_shape)
                     y = scanpath_network(scanpath_features)
                 else:
-                    y = None
+                    # When no scanpath history, create zero tensor with expected shape
+                    y = torch.zeros(x.shape[0], 16, x.shape[2], x.shape[3], device=x.device)
             else:
                 y = None
 
